@@ -3,24 +3,13 @@ on:
   release:
     types: [created]
 jobs:
-  release-darwin-amd64:
-    name: release darwin/amd64
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@master
-    - name: compile and release
-      uses: ngs/go-release.action@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GOARCH: amd64
-        GOOS: darwin
   compile-and-release:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           # - { runner: macos-latest,  os: darwin,  arch: amd64 }
-          # - { runner: macos-latest,  os: darwin,  arch: arm64 }
+          - { runner: macos-latest,  os: darwin,  arch: arm64 }
           - { runner: ubuntu-latest, os: linux,   arch: amd64 }
           - { runner: ubuntu-latest, os: windows, arch: amd64 }
     steps:
@@ -29,4 +18,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOARCH: ${{ matrix.arch }}
-          GOOS: ${{ matrix.arch }}
+          GOOS: ${{ matrix.os }}
