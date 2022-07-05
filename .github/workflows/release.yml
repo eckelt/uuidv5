@@ -3,7 +3,7 @@ on:
   release:
     types: [created]
 jobs:
-  example:
+  compile-and-release:
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -14,13 +14,8 @@ jobs:
           - { runner: ubuntu-latest, os: windows, arch: amd64 }
     steps:
       - uses: actions/checkout@v3
-      - uses: hashicorp/actions-reproducible-build@main
-        with:
-          product_name: example-app
-          product_version: 1.0.0
-          go_version: 1.18
-          os: ${{ matrix.os }}
-          arch: ${{ matrix.arch }}
-          instructions: |-
-            cd ./testdata/example-app
-            go build -o "$BIN_PATH" -trimpath -buildvcs=false
+      - uses: ngs/go-release.action@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOARCH: ${{ matrix.arch }}
+          GOOS: ${{ matrix.arch }}
