@@ -24,7 +24,7 @@ jobs:
         go-version: 1.18
 
     - name: Build
-      run: go build -v uuidv5-${{ matrix.os }}-${{ matrix.arch }} .
+      run: go build -v -o uuidv5-${{ matrix.os }}-${{ matrix.arch }} .
       env: 
         GOOS: ${{ matrix.os }}
         GOARCH: ${{ matrix.arch }}
