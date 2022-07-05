@@ -1,62 +1,94 @@
 package main
 
-import "context"
-import "log"
-import "strings"
-import "os"
-import "github.com/google/uuid"
-import "github.com/aws/aws-sdk-go-v2/config"
-import "github.com/aws/aws-sdk-go-v2/service/cloudformation"
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/eckelt/uuidv5/backwards"
+	"github.com/eckelt/uuidv5/namespace"
+	"github.com/google/uuid"
+)
 
 func usage() {
-	log.Println("USAGE: " + os.Args[0] + " <type> <data>")
-	log.Println("	<type> is the prefix of the namespace (e.g. mandant, objekt)")
-	log.Println("	<data> is mId + id, or just mId in case of mandant")
+	fmt.Println("USAGE: " + os.Args[0] + " [-n namespace] [-c data] [-b mId-uuid uuid]")
+	fmt.Println("	-n namespace 	namespace to convert the uuids into or from (e.g. mandant, objekt)")
+	fmt.Println("	-c <data>		convert given data mId+id into uuid in given namespace")
+	fmt.Println("	-b <mId> <uuid>	looking for mandantId and uuid in given namespace")
 }
 
-func readArgs(args []string) (string, string) {
-	if len(os.Args[1:]) < 2 {
-		usage()
-		os.Exit(1)
-	}
-	return os.Args[1], os.Args[2]
-}
-
-func getNamespace(typ string) uuid.UUID {
-	// Load the Shared AWS Configuration (~/.aws/config)
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	client := cloudformation.NewFromConfig(cfg)
-
-	// Get the first page of results for ListObjectsV2 for a bucket
-	output, err := client.ListExports(context.TODO(), &cloudformation.ListExportsInput{})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var ns string
-	for _, object := range output.Exports {
-		if strings.HasSuffix(*object.Name, "-namespace") && strings.HasPrefix(*object.Name, typ) {
-			ns = *object.Value
+func readArgs(args []string) (namespace, data, mId, uuid string) {
+	for i := 0; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "-n":
+			i++
+			namespace = os.Args[i]
+		case "-c":
+			i++
+			data = os.Args[i]
+		case "-b":
+			i++
+			mId = os.Args[i]
+			if len(os.Args) > i+1 && len(os.Args[i+1]) == 36 {
+				i++
+				uuid = os.Args[i]
+			}
 		}
 	}
-	if ns == "" {
-		log.Println("No namespace found for type: " + typ)
-		os.Exit(1)
-	}
+	return
+}
 
-	space, err := uuid.Parse(ns)
-	if err != nil {
-		log.Println(err)
+func keys(m map[string]uuid.UUID) []string {
+	//The default length of the array is the length of the map. When the array is attached, there is no need to re apply for memory and copy, which is very efficient
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
 	}
-	return space
+	return keys
 }
 
 func main() {
-	typ, data := readArgs(os.Args[1:])
-	space := getNamespace(typ)
-	log.Println(uuid.NewSHA1(space, []byte(data)))
+	ctx := context.Background()
+
+	ns, data, mId, needle := readArgs(os.Args[1:])
+	if ns == "" {
+		fmt.Fprintln(os.Stderr, "Parameter -n namespace is mandatory")
+		usage()
+		os.Exit(2)
+	}
+
+	namespaces, err := namespace.GetAllNamespaces(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// generate uuid for given type
+	if data != "" {
+		nsUuid, ok := namespaces[ns]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Found namespaces for %s\nBut none for: \"%s\"\n", strings.Join(keys(namespaces), ", "), ns)
+		} else {
+			fmt.Println(uuid.NewSHA1(nsUuid, []byte(data)))
+		}
+	}
+
+	if mId != "" {
+		// backwards search for given uuid
+		mandantId, uuids, err := backwards.Find(ctx, mId, ns, namespaces)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		if needle != "" && ns != "mandanten" && uuids != nil {
+			found, ok := uuids[needle]
+			if !ok {
+				fmt.Printf("%s not found in %s for mandant %s\n", needle, ns, mandantId)
+			} else {
+				fmt.Printf("%s %s\n", mandantId, found)
+			}
+		} else {
+			fmt.Println(mandantId)
+		}
+	}
 }

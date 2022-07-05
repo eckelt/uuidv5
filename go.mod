@@ -1,4 +1,4 @@
-module uuidv5
+module github.com/eckelt/uuidv5
 
 go 1.18
 
