@@ -1,0 +1,46 @@
+name: Publish
+
+on:
+  relase:
+    types: [created]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # - { runner: macos-latest,  os: darwin,  arch: amd64 }
+          - { os: darwin,  arch: arm64 }
+          - { os: linux,   arch: amd64 }
+          - { os: windows, arch: amd64 }
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: Build
+      run: go build -v -o uuidv5-${{ matrix.os }}-${{ matrix.arch }} .
+      env: 
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.arch }}
+
+    - name: Get release
+      id: get_release
+      uses: bruceadams/get-release@v1.2.3
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+    
+    - name: upload linux artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.get_release.outputs.upload_url }}
+        asset_path: ./
+        asset_name: uuidv5-${{ matrix.os }}-${{ matrix.arch }}
+        asset_content_type: application/octet-stream

@@ -7,25 +7,8 @@ on:
 
 jobs:
 
-  release:
-
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          # - { runner: macos-latest,  os: darwin,  arch: amd64 }
-          - { os: darwin,  arch: arm64 }
-          - { os: linux,   arch: amd64 }
-          - { os: windows, arch: amd64 }
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.18
-
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -36,52 +19,4 @@ jobs:
         release_name: Release ${{ github.ref }}
         draft: false
         prerelease: false
-
-    - name: Build-darwin-arm64
-      run: go build -v .
-      env: 
-        GOOS: darwin
-        GOARCH: arm64
-
-    - name: upload artifact uuidv5-darwin-arm64
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./uuidv5
-        asset_name: uuidv5-darwin-arm64
-        asset_content_type: application/octet-stream
-
-    - name: Build-linux-amd64
-      run: go build -v .
-      env: 
-        GOOS: linux
-        GOARCH: amd64
-
-    - name: upload artifact uuidv5-linux-amd64
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./uuidv5
-        asset_name: uuidv5-linux-amd64
-        asset_content_type: application/octet-stream
-
-    - name: Build-windows-amd64
-      run: go build -v .
-      env: 
-        GOOS: windows
-        GOARCH: amd64
-
-    - name: upload artifact uuidv5-windows-amd64
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./uuidv5
-        asset_name: uuidv5-windows-amd64
-        asset_content_type: application/octet-stream
-        
+    
