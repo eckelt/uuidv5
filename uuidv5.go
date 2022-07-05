@@ -17,6 +17,7 @@ func usage() {
 	fmt.Println("	-n namespace 	namespace to convert the uuids into or from (e.g. personen, objekte)")
 	fmt.Println("	-c <data>	convert given data mId+id into uuid in given namespace")
 	fmt.Println("	-b <mId> <uuid>	looking for mandantId and uuid in given namespace")
+	fmt.Println("	-h		this usage")
 }
 
 func readArgs(args []string) (namespace, data, mId, uuid string, verbose bool) {
@@ -29,6 +30,9 @@ func readArgs(args []string) (namespace, data, mId, uuid string, verbose bool) {
 		case "-c":
 			i++
 			data = os.Args[i]
+		case "-h":
+			usage()
+			os.Exit(0)
 		case "-v":
 			verbose = true
 		case "-b":
@@ -87,7 +91,9 @@ func main() {
 		if verbose {
 			log.Printf("Checked mandanten in s3 and found %s\n", mandantId)
 		}
-		if needle != "" && ns != "mandanten" {
+		if needle == "" || ns == "mandanten" {
+			fmt.Println(mandantId)
+		} else {
 			uuids, err := backwards.Rainbow(ctx, mandantId, ns)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
@@ -101,8 +107,6 @@ func main() {
 			} else {
 				fmt.Printf("%s %s\n", mandantId, found)
 			}
-		} else {
-			fmt.Println(mandantId)
 		}
 	}
 }

@@ -8,12 +8,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/google/uuid"
 )
 
-func collect(output *cloudformation.ListExportsOutput) map[string]uuid.UUID {
+func collect(exports []types.Export) map[string]uuid.UUID {
 	namespaces := map[string]uuid.UUID{}
-	for _, object := range output.Exports {
+	for _, object := range exports {
 		key := aws.ToString(object.Name)
 		if strings.HasSuffix(key, "-namespace") {
 			uuid, err := uuid.Parse(aws.ToString(object.Value))
@@ -42,5 +43,5 @@ func GetAllNamespaces(ctx context.Context) (map[string]uuid.UUID, error) {
 		return nil, err
 	}
 
-	return collect(output), nil
+	return collect(output.Exports), nil
 }

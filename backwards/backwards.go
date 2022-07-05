@@ -64,7 +64,15 @@ func Mandant(ctx context.Context, mId string) (string, error) {
 	return "", errors.New("Mandant not found")
 }
 
-func Rainbow(ctx context.Context, mandantId, ns string) (map[string]string, error) {
+func rainbow(mandantId string, ids []string, namespace uuid.UUID) map[string]string {
+	uuids := map[string]string{}
+	for _, id := range ids {
+		uuids[uuid.NewSHA1(namespace, []byte(mandantId+id)).String()] = id
+	}
+	return uuids
+}
+
+func idsFromS3(ctx context.Context, mandantId, typ string) ([]string, error) {
 
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -75,18 +83,12 @@ func Rainbow(ctx context.Context, mandantId, ns string) (map[string]string, erro
 
 	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket:    aws.String(bucketName("dev")),
-		Prefix:    aws.String(mandantId + "/" + s3mapping[ns] + "/"),
+		Prefix:    aws.String(mandantId + "/" + s3mapping[typ] + "/"),
 		MaxKeys:   1000,
 		Delimiter: aws.String("/"),
 	})
 
-	namespaces, err := namespace.GetAllNamespaces(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	uuids := map[string]string{}
-
+	ids := []string{}
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -94,9 +96,23 @@ func Rainbow(ctx context.Context, mandantId, ns string) (map[string]string, erro
 		}
 		for _, object := range page.Contents {
 			id := filename(aws.ToString(object.Key))
-			uuids[uuid.NewSHA1(namespaces[ns], []byte(mandantId+id)).String()] = id
+			ids = append(ids, id)
 		}
 	}
+	return ids, nil
+}
 
-	return uuids, nil
+func Rainbow(ctx context.Context, mandantId, typ string) (map[string]string, error) {
+
+	namespaces, err := namespace.GetAllNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ids, err := idsFromS3(ctx, mandantId, typ)
+	if err != nil {
+		return nil, err
+	}
+
+	return rainbow(mandantId, ids, namespaces[typ]), nil
 }
