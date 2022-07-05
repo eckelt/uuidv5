@@ -14,9 +14,13 @@ jobs:
           - { runner: ubuntu-latest, os: windows, arch: amd64 }
     steps:
       - uses: actions/checkout@v3
-      - uses: wangyoucao577/go-release-action@v1.29
+      - uses: hashicorp/actions-reproducible-build@main
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          goversion: 1.18
-          goos: ${{ matrix.os }}
-          goarch: ${{ matrix.arch }}
+          product_name: example-app
+          product_version: 1.0.0
+          go_version: 1.18
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          instructions: |-
+            cd ./testdata/example-app
+            go build -o "$BIN_PATH" -trimpath -buildvcs=false
