@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -13,12 +14,13 @@ import (
 
 func usage() {
 	fmt.Println("USAGE: " + os.Args[0] + " [-n namespace] [-c data] [-b mId-uuid uuid]")
-	fmt.Println("	-n namespace 	namespace to convert the uuids into or from (e.g. mandant, objekt)")
-	fmt.Println("	-c <data>		convert given data mId+id into uuid in given namespace")
+	fmt.Println("	-n namespace 	namespace to convert the uuids into or from (e.g. personen, objekte)")
+	fmt.Println("	-c <data>	convert given data mId+id into uuid in given namespace")
 	fmt.Println("	-b <mId> <uuid>	looking for mandantId and uuid in given namespace")
 }
 
-func readArgs(args []string) (namespace, data, mId, uuid string) {
+func readArgs(args []string) (namespace, data, mId, uuid string, verbose bool) {
+	verbose = false
 	for i := 0; i < len(os.Args); i++ {
 		switch os.Args[i] {
 		case "-n":
@@ -27,6 +29,8 @@ func readArgs(args []string) (namespace, data, mId, uuid string) {
 		case "-c":
 			i++
 			data = os.Args[i]
+		case "-v":
+			verbose = true
 		case "-b":
 			i++
 			mId = os.Args[i]
@@ -51,7 +55,7 @@ func keys(m map[string]uuid.UUID) []string {
 func main() {
 	ctx := context.Background()
 
-	ns, data, mId, needle := readArgs(os.Args[1:])
+	ns, data, mId, needle, verbose := readArgs(os.Args[1:])
 	if ns == "" {
 		fmt.Fprintln(os.Stderr, "Parameter -n namespace is mandatory")
 		usage()
@@ -65,22 +69,32 @@ func main() {
 	}
 
 	// generate uuid for given type
-	if data != "" {
-		nsUuid, ok := namespaces[ns]
-		if !ok {
-			fmt.Fprintf(os.Stderr, "Found namespaces for %s\nBut none for: \"%s\"\n", strings.Join(keys(namespaces), ", "), ns)
-		} else {
+	nsUuid, ok := namespaces[ns]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Unknown namespace \"%s\". Do you mean any of these: %s\n", ns, strings.Join(keys(namespaces), ", "))
+	} else {
+		if data != "" {
 			fmt.Println(uuid.NewSHA1(nsUuid, []byte(data)))
 		}
 	}
 
 	if mId != "" {
 		// backwards search for given uuid
-		mandantId, uuids, err := backwards.Find(ctx, mId, ns, namespaces)
+		mandantId, err := backwards.Mandant(ctx, mId)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
-		if needle != "" && ns != "mandanten" && uuids != nil {
+		if verbose {
+			log.Printf("Checked mandanten in s3 and found %s\n", mandantId)
+		}
+		if needle != "" && ns != "mandanten" {
+			uuids, err := backwards.Rainbow(ctx, mandantId, ns)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			if verbose {
+				log.Printf("Created rainbow table of %d entries of %s for this mandantor\n", len(uuids), ns)
+			}
 			found, ok := uuids[needle]
 			if !ok {
 				fmt.Printf("%s not found in %s for mandant %s\n", needle, ns, mandantId)
