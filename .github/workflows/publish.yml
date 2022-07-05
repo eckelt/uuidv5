@@ -12,9 +12,9 @@ jobs:
       matrix:
         include:
           # - { runner: macos-latest,  os: darwin,  arch: amd64 }
-          - { os: darwin,  arch: arm64 }
-          - { os: linux,   arch: amd64 }
-          - { os: windows, arch: amd64 }
+          - { os: darwin,  arch: arm64, extension:  }
+          - { os: linux,   arch: amd64, extension:  }
+          - { os: windows, arch: amd64, extension: .exe }
     steps:
     - uses: actions/checkout@v3
 
@@ -41,6 +41,6 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.get_release.outputs.upload_url }}
-        asset_path: ./uuidv5
+        asset_path: ./uuidv5${{ matrix.extension }}
         asset_name: uuidv5-${{ matrix.os }}-${{ matrix.arch }}
         asset_content_type: application/octet-stream
