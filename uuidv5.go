@@ -7,8 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/eckelt/uuidv5/backwards"
-	"github.com/eckelt/uuidv5/namespace"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/eckelt/uuidv5/awsExports"
+	"github.com/eckelt/uuidv5/s3Data"
 	"github.com/google/uuid"
 )
 
@@ -66,7 +67,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	namespaces, err := namespace.GetAllNamespaces(ctx)
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error loading config:", err)
+		os.Exit(1)
+	}
+
+	exports := awsExports.NewFromAwsConfig(cfg)
+
+	namespaces, err := exports.Namespaces(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -84,7 +93,18 @@ func main() {
 
 	if mId != "" {
 		// backwards search for given uuid
-		mandantId, err := backwards.Mandant(ctx, mId)
+		stage, err := exports.Stage(ctx)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+
+		if verbose {
+			fmt.Println("Stage:", stage)
+		}
+
+		s3Data := s3Data.NewFromAwsConfig(cfg, stage, namespaces)
+
+		mandantId, err := s3Data.Mandant(ctx, mId)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -94,7 +114,7 @@ func main() {
 		if needle == "" || ns == "mandanten" {
 			fmt.Println(mandantId)
 		} else {
-			uuids, err := backwards.Rainbow(ctx, mandantId, ns)
+			uuids, err := s3Data.Rainbow(ctx, mandantId, ns)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}

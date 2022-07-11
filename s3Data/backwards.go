@@ -1,4 +1,4 @@
-package backwards
+package s3Data
 
 import (
 	"context"
@@ -6,11 +6,23 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/eckelt/uuidv5/namespace"
 	"github.com/google/uuid"
 )
+
+type S3Data struct {
+	stage      string
+	client     *s3.Client
+	namespaces map[string]uuid.UUID
+}
+
+func NewFromAwsConfig(cfg aws.Config, stage string, namespaces map[string]uuid.UUID) *S3Data {
+	return &S3Data{
+		stage:      stage,
+		client:     s3.NewFromConfig(cfg),
+		namespaces: namespaces,
+	}
+}
 
 func bucketName(stage string) string {
 	return "immosolve-" + stage + "-classic-import-data"
@@ -30,18 +42,10 @@ var s3mapping = map[string]string{
 	"aktivitaeten": "Activity",
 }
 
-func Mandant(ctx context.Context, mId string) (string, error) {
-
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	client := s3.NewFromConfig(cfg)
-
+func (s *S3Data) Mandant(ctx context.Context, mId string) (string, error) {
 	// Get the first page of results for ListObjectsV2 for a bucket
-	output, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket:    aws.String(bucketName("dev")),
+	output, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:    aws.String(bucketName(s.stage)),
 		MaxKeys:   10000,
 		Delimiter: aws.String("/"),
 	})
@@ -49,14 +53,9 @@ func Mandant(ctx context.Context, mId string) (string, error) {
 		return "", err
 	}
 
-	namespaces, err := namespace.GetAllNamespaces(ctx)
-	if err != nil {
-		return "", err
-	}
-
 	for _, value := range output.CommonPrefixes {
 		stripedPrefix := strings.Replace(aws.ToString(value.Prefix), "/", "", 1)
-		if uuid.NewSHA1(namespaces["mandanten"], []byte(stripedPrefix)).String() == mId {
+		if uuid.NewSHA1(s.namespaces["mandanten"], []byte(stripedPrefix)).String() == mId {
 			return stripedPrefix, nil
 		}
 	}
@@ -72,17 +71,10 @@ func rainbow(mandantId string, ids []string, namespace uuid.UUID) map[string]str
 	return uuids
 }
 
-func idsFromS3(ctx context.Context, mandantId, typ string) ([]string, error) {
+func (s *S3Data) idsFromS3(ctx context.Context, mandantId, typ string) ([]string, error) {
 
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	client := s3.NewFromConfig(cfg)
-
-	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
-		Bucket:    aws.String(bucketName("dev")),
+	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
+		Bucket:    aws.String(bucketName(s.stage)),
 		Prefix:    aws.String(mandantId + "/" + s3mapping[typ] + "/"),
 		MaxKeys:   1000,
 		Delimiter: aws.String("/"),
@@ -102,17 +94,12 @@ func idsFromS3(ctx context.Context, mandantId, typ string) ([]string, error) {
 	return ids, nil
 }
 
-func Rainbow(ctx context.Context, mandantId, typ string) (map[string]string, error) {
+func (s *S3Data) Rainbow(ctx context.Context, mandantId, typ string) (map[string]string, error) {
 
-	namespaces, err := namespace.GetAllNamespaces(ctx)
+	ids, err := s.idsFromS3(ctx, mandantId, typ)
 	if err != nil {
 		return nil, err
 	}
 
-	ids, err := idsFromS3(ctx, mandantId, typ)
-	if err != nil {
-		return nil, err
-	}
-
-	return rainbow(mandantId, ids, namespaces[typ]), nil
+	return rainbow(mandantId, ids, s.namespaces[typ]), nil
 }
